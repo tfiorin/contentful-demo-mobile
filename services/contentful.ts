@@ -69,6 +69,61 @@ function resolveEntry(entryId: string, includes?: ContentfulResponse["includes"]
 }
 
 /**
+ * Recursively resolve all asset references in an entry's fields
+ */
+function resolveAssetsInEntry(entry: any, includes?: ContentfulResponse["includes"]): any {
+  if (!entry || !entry.fields) return entry;
+
+  const resolvedFields = { ...entry.fields };
+
+  // Iterate through all fields in the entry
+  Object.keys(resolvedFields).forEach((key) => {
+    const field = resolvedFields[key];
+
+    console.log(`Checking field "${key}":`, JSON.stringify(field, null, 2));
+
+    // Check if this field is an asset reference (could be Link type or just sys.id)
+    if (field && field.sys && field.sys.id) {
+      // Check if it's explicitly a Link to an Asset
+      if (field.sys.type === "Link" && field.sys.linkType === "Asset") {
+        const assetUrl = resolveAssetUrl(field.sys.id, includes);
+        console.log(`Resolved asset URL for field "${key}":`, assetUrl);
+        if (assetUrl) {
+          resolvedFields[key] = {
+            sys: field.sys,
+            fields: {
+              file: {
+                url: assetUrl,
+              },
+            },
+          };
+        }
+      }
+      // Or if it just has a sys.id, try to resolve it as an asset anyway
+      else if (!field.fields) {
+        const assetUrl = resolveAssetUrl(field.sys.id, includes);
+        console.log(`Attempting to resolve sys.id "${field.sys.id}" for field "${key}":`, assetUrl);
+        if (assetUrl) {
+          resolvedFields[key] = {
+            sys: field.sys,
+            fields: {
+              file: {
+                url: assetUrl,
+              },
+            },
+          };
+        }
+      }
+    }
+  });
+
+  return {
+    ...entry,
+    fields: resolvedFields,
+  };
+}
+
+/**
  * Fetch all products from Contentful (pageProduct content type)
  */
 export async function fetchContentfulProducts(): Promise<ContentfulProduct[]> {
@@ -101,11 +156,21 @@ export async function fetchContentfulProducts(): Promise<ContentfulProduct[]> {
     const products = data.items.map((entry) => {
       const product = transformContentfulEntry(entry);
 
-      // Resolve image URL if it's an asset ID
-      if (product.fields.image?.fields?.file?.url && data.includes?.Asset) {
-        const assetUrl = resolveAssetUrl(product.fields.image.fields.file.url, data.includes);
+      // Check if the image field exists and has an asset reference
+      const imageField = entry.fields.featuredProductImage;
+      
+      if (imageField && imageField.sys && imageField.sys.id) {
+        // Resolve the asset URL from includes
+        const assetUrl = resolveAssetUrl(imageField.sys.id, data.includes);
         if (assetUrl) {
-          product.fields.image.fields.file.url = `https:${assetUrl}`;
+          product.fields.image = {
+            fields: {
+              file: {
+                url: assetUrl,
+              },
+            },
+          };
+          console.log(`Resolved product image for "${product.fields.title}":`, assetUrl);
         }
       }
 
@@ -209,12 +274,21 @@ export async function fetchLandingPageContent(): Promise<any> {
     const landingPage = data.items[0];
     const fields = landingPage.fields;
 
-    // Resolve hero banner entry
-    const heroBanner = fields.heroBanner?.sys?.id
+    // Debug: Log the includes to see what assets are available
+    console.log("Available assets in includes:", JSON.stringify(data.includes?.Asset?.map(a => ({
+      id: a.sys.id,
+      url: a.fields.file.url
+    })), null, 2));
+
+    // Resolve hero banner entry and its assets
+    let heroBanner = fields.heroBanner?.sys?.id
       ? resolveEntry(fields.heroBanner.sys.id, data.includes)
       : null;
 
-    console.log("Resolved hero banner:", heroBanner);
+    // Resolve assets within the hero banner
+    if (heroBanner) {
+      heroBanner = resolveAssetsInEntry(heroBanner, data.includes);
+    }
 
     // Resolve feature entries
     const leftFeature = fields.leftFeature?.sys?.id

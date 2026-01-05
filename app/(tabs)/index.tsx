@@ -3,7 +3,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useColors } from "@/hooks/use-colors";
 import { useHomePageContent } from "@/lib/homepage-provider";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import * as Haptics from "expo-haptics";
 import { Platform } from "react-native";
@@ -41,11 +41,14 @@ function FeatureCard({ icon, title, description }: FeatureCardProps) {
 
 export default function HomeScreen() {
   const colors = useColors();
+  const router = useRouter();
   const { content, loading, error, refreshContent } = useHomePageContent();
   const [refreshing, setRefreshing] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    setImageError(false);
     await refreshContent();
     setRefreshing(false);
   };
@@ -54,7 +57,7 @@ export default function HomeScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    router.push("/(tabs)/products" as any);
+    router.push("/products");
   };
 
   // Determine which features to display
@@ -64,7 +67,7 @@ export default function HomeScreen() {
       : [
           {
             id: "default-1",
-            title: "Fast & Reliablesss",
+            title: "Fast & Reliable",
             description: "Industry-leading performance and reliability for your business operations",
             icon: "bolt",
           },
@@ -101,23 +104,41 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View className="flex-1 p-6 gap-8">
+          <View className="flex-1 gap-8">
             {/* Hero Section */}
-            <View className="items-center gap-4">
+            <View className="items-center gap-4 px-6">
+              {/* Hero Banner Image */}
+              {content?.bannerImage && !imageError && (
+                <View className="w-full">
+                  <Image
+                    source={{ uri: content.bannerImage }}
+                    style={{ 
+                      width: '100%', 
+                      height: 250,
+                      resizeMode: 'cover'
+                    }}
+                    onError={() => {
+                      console.error("Failed to load banner image:", content.bannerImage);
+                      setImageError(true);
+                    }}
+                    onLoad={() => console.log("Banner image loaded successfully")}
+                  />
+                </View>
+              )}
               <View className="bg-primary/10 px-6 py-2 rounded-full">
                 <Text className="text-primary font-semibold text-base">
                   {content?.heroTitle || "Sale is now on!"}
                 </Text>
               </View>
               <Text className="text-4xl font-bold text-foreground text-center">PayCo</Text>
-              <Text className="text-base text-muted text-center leading-relaxed px-4">
+              <Text className="text-base text-muted text-center leading-relaxed">
                 {content?.heroDescription ||
                   "Advanced, technology-based commerce solutions for all types of businesses. Discover our cutting-edge hardware products designed to power your success."}
               </Text>
             </View>
 
             {/* Feature Highlights */}
-            <View className="gap-4">
+            <View className="gap-4 px-6">
               {featuresToDisplay.map((feature) => (
                 <FeatureCard
                   key={feature.id}

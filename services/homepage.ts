@@ -3,7 +3,7 @@
  * Uses the pageLanding content type to match the web project structure
  */
 
-import { fetchLandingPageContent } from "./contentful";
+import { fetchLandingPageContent } from "@/services/contentful";
 
 export interface HomePageContent {
   heroTitle: string;
@@ -32,17 +32,28 @@ async function transformLandingPage(landingPage: any): Promise<HomePageContent> 
     heroBanner.heroHeadlineText ||
     "Hardcoded: PayCo provides advanced, technology-based commerce solutions for all types of businesses. Discover our cutting-edge hardware products designed to power your success.";
 
-  // Extract hero banner image
+  // Extract hero banner image - with better debugging
   let bannerImage: string | undefined;
-  if (heroBanner.heroBannerImage?.file?.url) {
-    // Image URL from Contentful asset
-    bannerImage = `https:${heroBanner.heroBannerImage.file.url}`;
-  } else if (heroBanner.heroBannerImage?.sys?.id) {
-    // If it's just an asset ID, it should have been resolved by fetchLandingPageContent
-    bannerImage = heroBanner.heroBannerImage.sys.id;
-  }
+  
+  console.log("Hero banner structure:", JSON.stringify(heroBanner, null, 2));
+  console.log("Hero banner image field:", JSON.stringify(heroBanner.heroBannerImage, null, 2));
 
-  //console.log("Resolved banner image URL:", heroBanner.heroBannerImage, heroBanner.heroBannerImage?.file, heroBanner.heroBannerImage?.file?.url, bannerImage);
+  if (heroBanner.heroBannerImage) {
+    // Check if the asset was fully resolved with fields.file.url
+    if (heroBanner.heroBannerImage.fields?.file?.url) {
+      const url = heroBanner.heroBannerImage.fields.file.url;
+      // Add https: prefix if not already present
+      bannerImage = url.startsWith('//') ? `https:${url}` : url.startsWith('http') ? url : `https://${url}`;
+      console.log("Resolved banner image URL from fields:", bannerImage);
+    } 
+    // Fallback: check if it's still just an asset reference
+    else if (heroBanner.heroBannerImage.sys?.id) {
+      console.warn("Banner image not resolved - still an asset ID:", heroBanner.heroBannerImage.sys.id);
+      bannerImage = undefined;
+    }
+  } else {
+    console.warn("No heroBannerImage field found in hero banner");
+  }
 
   // Extract features
   const features: Feature[] = [];
@@ -119,7 +130,7 @@ function getDefaultContent(): HomePageContent {
     features: [
       {
         id: "default-1",
-        title: "Fast & Reliable - hardcoded",
+        title: "Fast & Reliable",
         description: "Industry-leading performance and reliability for your business operations",
         icon: "bolt",
       },

@@ -3,8 +3,8 @@
  */
 
 import { Product, ContentfulProduct, ShopifyProduct } from "@/types/product";
-import { fetchContentfulProducts } from "./contentful";
-import { fetchShopifyInventory } from "./shopify";
+import { fetchContentfulProducts } from "@/services/contentful";
+import { fetchShopifyInventory } from "@/services/shopify";
 
 /**
  * Transform Contentful product to app Product format
@@ -14,9 +14,14 @@ function transformContentfulProduct(
   shopifyInventory: Map<string, ShopifyProduct>
 ): Product {
   const { sys, fields } = contentfulProduct;
-  const imageUrl = fields.image?.fields?.file?.url
-    ? `https:${fields.image.fields.file.url}`
-    : "";
+  
+  // Handle image URL - it might be just an asset ID or a resolved URL
+  let imageUrl = "";
+  if (fields.image?.fields?.file?.url) {
+    const url = fields.image.fields.file.url;
+    // Add https: prefix if URL starts with //
+    imageUrl = url.startsWith('//') ? `https:${url}` : url.startsWith('http') ? url : `https://${url}`;
+  }
 
   // Match with Shopify inventory using slug or shopifyHandle
   const handle = fields.shopifyHandle || fields.slug;
@@ -54,6 +59,8 @@ export async function fetchProducts(): Promise<Product[]> {
     const products = contentfulProducts.map((contentfulProduct) =>
       transformContentfulProduct(contentfulProduct, shopifyInventoryMap)
     );
+
+    console.log("Transformed products:", products.map(p => ({ title: p.title, imageUrl: p.imageUrl })));
 
     return products;
   } catch (error) {
